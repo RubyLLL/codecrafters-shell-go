@@ -15,17 +15,19 @@ func main() {
 	// TODO: Uncomment the code below to pass the first stage
 	for true {
 		fmt.Fprint(os.Stdout, "$ ")
-		readUserCommand()
+
+		command, err := bufio.NewReader(os.Stdin).ReadString('\n')
+
+		check(err)
+
+		command = strings.TrimSpace(command)
+
+		if command == "exit" {
+			break
+		}
+
+		fmt.Printf("%s: command not found\n", command)
 	}
-
-}
-
-func readUserCommand() {
-	command, err := bufio.NewReader(os.Stdin).ReadString('\n')
-	check(err)
-
-	command = strings.TrimSpace(command)
-	fmt.Printf("%s: command not found\n", command)
 }
 
 func check(err error) {
