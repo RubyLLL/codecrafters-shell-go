@@ -13,25 +13,50 @@ var _ = os.Stdout
 
 func main() {
 	// TODO: Uncomment the code below to pass the first stage
+L:
 	for true {
 		fmt.Fprint(os.Stdout, "$ ")
 
-		command, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		input, err := bufio.NewReader(os.Stdin).ReadString('\n')
 
 		check(err)
 
-		command = strings.TrimSpace(command)
+		input = strings.TrimSpace(input)
+		output := runCommand(input)
 
-		if command == "exit" {
-			break
+		switch output {
+		case "exit":
+			break L
+		default:
+			fmt.Println(output)
 		}
-
-		fmt.Printf("%s: command not found\n", command)
 	}
 }
 
 func check(err error) {
 	if err != nil {
 		panic(err)
+	}
+}
+
+func runCommand(input string) string {
+	input = strings.TrimSpace(input)
+	parts := strings.Split(input, " ")
+	if len(parts) == 0 {
+		return ""
+	}
+
+	command := parts[0]
+
+	switch command {
+	case "exit":
+		return "exit"
+	case "echo":
+		if len(parts) > 1 {
+			return strings.Join(parts[1:], " ")
+		}
+		return ""
+	default:
+		return fmt.Sprintf("%s: command not found", command)
 	}
 }
