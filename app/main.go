@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -12,6 +13,7 @@ var _ = fmt.Fprint
 var _ = os.Stdout
 
 var supported_cmd = []string{"exit", "echo", "type"}
+var paths = strings.Split(os.Getenv("PATH"), string(os.PathListSeparator))
 
 func main() {
 	// TODO: Uncomment the code below to pass the first stage
@@ -54,8 +56,10 @@ func runCommand(input string) string {
 		return ""
 	case "type":
 		if len(parts) > 1 {
-			if supported(parts[1]) {
+			if supported_command(parts[1]) {
 				return fmt.Sprintf("%s is a shell builtin", parts[1])
+			} else if fullpath, err := executable(parts[1], paths); err == nil && fullpath != "" {
+				return fmt.Sprintf("%s is %s", parts[1], fullpath)
 			} else {
 				return fmt.Sprintf("%s: not found", parts[1])
 			}
@@ -73,11 +77,22 @@ func check(err error) {
 	}
 }
 
-func supported(command string) bool {
+func supported_command(command string) bool {
 	for _, s := range supported_cmd {
 		if s == command {
 			return true
 		}
 	}
 	return false
+}
+
+func executable(command string, paths []string) (string, error) {
+	for _, p := range paths {
+		fp := filepath.Join(p, command)
+		if info, err := os.Stat(fp); err == nil && info.Mode().IsRegular() && (info.Mode()&0111 != 0) {
+			return fp, nil
+		}
+	}
+
+	return "", nil
 }

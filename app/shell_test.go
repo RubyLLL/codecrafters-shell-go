@@ -68,3 +68,21 @@ func TestRunCommandTypeEmpty(t *testing.T) {
 		t.Errorf("type: got %q, want %q", got, want)
 	}
 }
+
+func TestRunCommandTypeExecutableFile(t *testing.T) {
+	got := runCommand("type cat")
+	want := "cat is /bin/cat"
+
+	if got != want {
+		t.Errorf("type: got %q, want %q", got, want)
+	}
+}
+
+func TestRunCommandTypeNonExist(t *testing.T) {
+	got := runCommand("type abc")
+	want := "abc: not found"
+
+	if got != want {
+		t.Errorf("type: got %q, want %q", got, want)
+	}
+}
