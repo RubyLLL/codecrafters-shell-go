@@ -13,8 +13,11 @@ var _ = os.Stdout
 
 func main() {
 	// TODO: Uncomment the code below to pass the first stage
-	fmt.Fprint(os.Stdout, "$ ")
-	readUserCommand()
+	for true {
+		fmt.Fprint(os.Stdout, "$ ")
+		readUserCommand()
+	}
+
 }
 
 func readUserCommand() {
@@ -22,7 +25,7 @@ func readUserCommand() {
 	check(err)
 
 	command = strings.TrimSpace(command)
-	fmt.Printf("%s: command not found", command)
+	fmt.Printf("%s: command not found\n", command)
 }
 
 func check(err error) {
