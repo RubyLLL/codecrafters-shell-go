@@ -11,6 +11,8 @@ import (
 var _ = fmt.Fprint
 var _ = os.Stdout
 
+var supported_cmd = []string{"exit", "echo", "type"}
+
 func main() {
 	// TODO: Uncomment the code below to pass the first stage
 L:
@@ -33,12 +35,6 @@ L:
 	}
 }
 
-func check(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
 func runCommand(input string) string {
 	input = strings.TrimSpace(input)
 	parts := strings.Split(input, " ")
@@ -56,7 +52,32 @@ func runCommand(input string) string {
 			return strings.Join(parts[1:], " ")
 		}
 		return ""
+	case "type":
+		if len(parts) > 1 {
+			if supported(parts[1]) {
+				return fmt.Sprintf("%s is a shell builtin", parts[1])
+			} else {
+				return fmt.Sprintf("%s: not found", parts[1])
+			}
+		}
+		return ""
+
 	default:
 		return fmt.Sprintf("%s: command not found", command)
 	}
+}
+
+func check(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func supported(command string) bool {
+	for _, s := range supported_cmd {
+		if s == command {
+			return true
+		}
+	}
+	return false
 }
