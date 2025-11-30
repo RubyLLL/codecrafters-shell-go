@@ -141,32 +141,52 @@ func executeScript(command string, args ...string) string {
 	return strings.TrimSuffix(output, "\n")
 }
 
-func parseArgs(s string) []string {
+func parseArgs(input string) []string {
 	var args []string
-	var cur strings.Builder
-	inQuote := false
+	var curr strings.Builder
 
-	for i := 0; i < len(s); i++ {
-		c := s[i]
+	inSingle := false
+	inDouble := false
 
-		switch {
-		case c == '\'':
-			inQuote = !inQuote // toggle quote mode
+	escaped := false
 
-		case !inQuote && (c == ' ' || c == '\t' || c == '\n'):
-			// delimiter ends argument
-			if cur.Len() > 0 {
-				args = append(args, cur.String())
-				cur.Reset()
-			}
+	for i := 0; i < len(input); i++ {
+		c := input[i]
 
-		default:
-			cur.WriteByte(c)
+		if inDouble && c == '\\' && !escaped {
+			escaped = true
+			continue
 		}
+
+		if escaped {
+			curr.WriteByte(c)
+			escaped = false
+			continue
+		}
+
+		if c == '\'' && !inDouble {
+			inSingle = !inSingle
+			continue
+		}
+
+		if c == '"' && !inSingle {
+			inDouble = !inDouble
+			continue
+		}
+
+		if (c == ' ' || c == '\t') && !inSingle && !inDouble {
+			if curr.Len() > 0 {
+				args = append(args, curr.String())
+				curr.Reset()
+			}
+			continue
+		}
+
+		curr.WriteByte(c)
 	}
 
-	if cur.Len() > 0 {
-		args = append(args, cur.String())
+	if curr.Len() > 0 {
+		args = append(args, curr.String())
 	}
 
 	return args

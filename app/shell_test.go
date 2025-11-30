@@ -196,6 +196,12 @@ func TestParseArgs(t *testing.T) {
 
 		// full tricky sequence
 		{"echo 'a''b'c''d''e'f", []string{"echo", "abcdef"}},
+
+		// --- DOUBLE QUOTES ---
+		{"echo \"hello world\"", []string{"echo", "hello world"}},
+		{"echo \"hello     shell\"", []string{"echo", "hello     shell"}},
+		{"echo \"example\"\"test\"", []string{"echo", "exampletest"}},
+		{"echo \"a\"\"b\"c\"\"d\"", []string{"echo", "abcd"}},
 	}
 
 	for _, tt := range tests {
