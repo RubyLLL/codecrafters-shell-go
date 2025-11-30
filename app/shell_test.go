@@ -144,3 +144,13 @@ func TestGoToRelativePath(t *testing.T) {
 		t.Errorf("type: got %q, want %q", got, want)
 	}
 }
+
+func TestGoToHomeDir(t *testing.T) {
+	runCommand("cd ~")
+	got := runCommand("pwd")
+	want := "/Users/xiaoyuelyu"
+
+	if got != want {
+		t.Errorf("type: got %q, want %q", got, want)
+	}
+}

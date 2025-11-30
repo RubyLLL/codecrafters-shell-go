@@ -86,10 +86,13 @@ func runCommand(input string) string {
 		return fmt.Sprintf("%s", output)
 
 	case CD:
-		if !exist(parts[1]) {
+		var target = parts[1]
+		if parts[1] == "~" {
+			target, _ = os.UserHomeDir()
+		} else if !exist(target) {
 			return fmt.Sprintf("cd: %s: No such file or directory", parts[1])
 		}
-		err := os.Chdir(parts[1])
+		err := os.Chdir(target)
 		check(err)
 		return ""
 
