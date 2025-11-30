@@ -153,14 +153,25 @@ func parseArgs(input string) []string {
 	for i := 0; i < len(input); i++ {
 		c := input[i]
 
-		if inDouble && c == '\\' && !escaped {
-			escaped = true
+		if escaped {
+			if inDouble {
+				switch c {
+				case '\\':
+					curr.WriteByte(c)
+				default:
+					curr.WriteByte('\\')
+					curr.WriteByte(c)
+				}
+			} else {
+				curr.WriteByte(c)
+			}
+
+			escaped = false
 			continue
 		}
 
-		if escaped {
-			curr.WriteByte(c)
-			escaped = false
+		if c == '\\' {
+			escaped = true
 			continue
 		}
 

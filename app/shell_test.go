@@ -241,6 +241,16 @@ func TestSingleQuote(t *testing.T) {
 			command: "echo 'hello shell' 'example''test' script''world",
 			want:    "hello shell exampletest scriptworld",
 		},
+		{
+			name:    "escape character outside quotes 1",
+			command: "echo world\\ \\ \\ \\ \\ \\ script",
+			want:    "world      script",
+		},
+		{
+			name:    "escape chracter outside quotes 2",
+			command: "echo test\\nexample",
+			want:    "testnexample",
+		},
 	}
 
 	for _, tt := range tests {
