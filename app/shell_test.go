@@ -115,3 +115,22 @@ func TestPwd(t *testing.T) {
 		t.Errorf("type: got %q, want %q", got, want)
 	}
 }
+
+func TestGoToNonExistentAbsoultePath(t *testing.T) {
+	got := runCommand("cd /Users/agnes")
+	want := "cd: /Users/agnes: No such file or directory"
+
+	if got != want {
+		t.Errorf("type: got %q, want %q", got, want)
+	}
+}
+
+func TestGoToAbsoultePath(t *testing.T) {
+	runCommand("cd /Users/xiaoyuelyu")
+	got := runCommand("pwd")
+	want := "/Users/xiaoyuelyu"
+
+	if got != want {
+		t.Errorf("type: got %q, want %q", got, want)
+	}
+}

@@ -19,9 +19,10 @@ const (
 	ECHO string = "echo"
 	TYPE string = "type"
 	PWD  string = "pwd"
+	CD   string = "cd"
 )
 
-var supportedCommand = []string{EXIT, ECHO, TYPE, PWD}
+var supportedCommand = []string{EXIT, ECHO, TYPE, PWD, CD}
 
 var paths = strings.Split(os.Getenv("PATH"), string(os.PathListSeparator))
 
@@ -42,7 +43,9 @@ L:
 		case EXIT:
 			break L
 		default:
-			fmt.Println(output)
+			if len(output) > 0 {
+				fmt.Println(output)
+			}
 		}
 	}
 }
@@ -68,7 +71,7 @@ func runCommand(input string) string {
 
 	case TYPE:
 		if len(parts) > 1 {
-			if supported_command(parts[1]) {
+			if supported(parts[1]) {
 				return fmt.Sprintf("%s is a shell builtin", parts[1])
 			} else if fullpath, err := executable(parts[1], paths); err == nil && fullpath != "" {
 				return fmt.Sprintf("%s is %s", parts[1], fullpath)
@@ -81,6 +84,14 @@ func runCommand(input string) string {
 	case PWD:
 		output, _ := os.Getwd()
 		return fmt.Sprintf("%s", output)
+
+	case CD:
+		if !exist(parts[1]) {
+			return fmt.Sprintf("cd: %s: No such file or directory", parts[1])
+		}
+		err := os.Chdir(parts[1])
+		check(err)
+		return ""
 
 	default:
 		if fullpath, err := executable(parts[0], paths); err == nil && fullpath != "" {
@@ -98,7 +109,7 @@ func check(err error) {
 	}
 }
 
-func supported_command(command string) bool {
+func supported(command string) bool {
 	return slices.Contains(supportedCommand, command)
 }
 
@@ -111,6 +122,13 @@ func executable(command string, paths []string) (string, error) {
 	}
 
 	return "", nil
+}
+
+func exist(path string) bool {
+	if _, err := os.Stat(path); err == nil {
+		return true
+	}
+	return false
 }
 
 func executeScript(command string, args ...string) string {
