@@ -156,7 +156,7 @@ func parseArgs(input string) []string {
 		if escaped {
 			if inDouble {
 				switch c {
-				case '\\':
+				case '\\', '"':
 					curr.WriteByte(c)
 				default:
 					curr.WriteByte('\\')

@@ -251,6 +251,11 @@ func TestSingleQuote(t *testing.T) {
 			command: "echo test\\nexample",
 			want:    "testnexample",
 		},
+		{
+			name:    "Backslash within double quotes 1",
+			command: "echo \"A \\ escapes itself\"",
+			want:    "A \\ escapes itself",
+		},
 	}
 
 	for _, tt := range tests {
