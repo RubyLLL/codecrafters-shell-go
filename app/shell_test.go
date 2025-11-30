@@ -125,10 +125,20 @@ func TestGoToNonExistentAbsoultePath(t *testing.T) {
 	}
 }
 
-func TestGoToAbsoultePath(t *testing.T) {
+func TestGoToAbsolutePath(t *testing.T) {
 	runCommand("cd /Users/xiaoyuelyu")
 	got := runCommand("pwd")
 	want := "/Users/xiaoyuelyu"
+
+	if got != want {
+		t.Errorf("type: got %q, want %q", got, want)
+	}
+}
+
+func TestGoToRelativePath(t *testing.T) {
+	runCommand("cd ../")
+	got := runCommand("pwd")
+	want := "/Users/xiaoyuelyu/go/codecrafters-shell-go"
 
 	if got != want {
 		t.Errorf("type: got %q, want %q", got, want)
