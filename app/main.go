@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -13,7 +14,15 @@ import (
 var _ = fmt.Fprint
 var _ = os.Stdout
 
-var supported_cmd = []string{"exit", "echo", "type"}
+const (
+	EXIT string = "exit"
+	ECHO string = "echo"
+	TYPE string = "type"
+	PWD  string = "pwd"
+)
+
+var supportedCommand = []string{EXIT, ECHO, TYPE, PWD}
+
 var paths = strings.Split(os.Getenv("PATH"), string(os.PathListSeparator))
 
 func main() {
@@ -30,7 +39,7 @@ L:
 		output := runCommand(input)
 
 		switch output {
-		case "exit":
+		case EXIT:
 			break L
 		default:
 			fmt.Println(output)
@@ -48,14 +57,16 @@ func runCommand(input string) string {
 	command := parts[0]
 
 	switch command {
-	case "exit":
+	case EXIT:
 		return "exit"
-	case "echo":
+
+	case ECHO:
 		if len(parts) > 1 {
 			return strings.Join(parts[1:], " ")
 		}
 		return ""
-	case "type":
+
+	case TYPE:
 		if len(parts) > 1 {
 			if supported_command(parts[1]) {
 				return fmt.Sprintf("%s is a shell builtin", parts[1])
@@ -66,6 +77,10 @@ func runCommand(input string) string {
 			}
 		}
 		return ""
+
+	case PWD:
+		output, _ := os.Getwd()
+		return fmt.Sprintf("%s", output)
 
 	default:
 		if fullpath, err := executable(parts[0], paths); err == nil && fullpath != "" {
@@ -84,12 +99,7 @@ func check(err error) {
 }
 
 func supported_command(command string) bool {
-	for _, s := range supported_cmd {
-		if s == command {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(supportedCommand, command)
 }
 
 func executable(command string, paths []string) (string, error) {

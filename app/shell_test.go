@@ -97,3 +97,21 @@ func TestExecuteScript(t *testing.T) {
 		t.Errorf("type: got %q, want %q", got, want)
 	}
 }
+
+func TestTypePwd(t *testing.T) {
+	got := runCommand("type pwd")
+	want := "pwd is a shell builtin"
+
+	if got != want {
+		t.Errorf("type: got %q, want %q", got, want)
+	}
+}
+
+func TestPwd(t *testing.T) {
+	got := runCommand("pwd")
+	want := "/Users/xiaoyuelyu/go/codecrafters-shell-go/app"
+
+	if got != want {
+		t.Errorf("type: got %q, want %q", got, want)
+	}
+}
