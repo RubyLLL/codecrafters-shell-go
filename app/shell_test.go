@@ -1,6 +1,8 @@
 package main
 
-import "testing"
+import (
+	"testing"
+)
 
 // echo
 func TestRunCommandEcho(t *testing.T) {
@@ -81,6 +83,15 @@ func TestRunCommandTypeExecutableFile(t *testing.T) {
 func TestRunCommandTypeNonExist(t *testing.T) {
 	got := runCommand("type abc")
 	want := "abc: not found"
+
+	if got != want {
+		t.Errorf("type: got %q, want %q", got, want)
+	}
+}
+
+func TestExecuteScript(t *testing.T) {
+	got := runCommand("ls .")
+	want := "main.go\nshell_test.go"
 
 	if got != want {
 		t.Errorf("type: got %q, want %q", got, want)

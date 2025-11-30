@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -67,6 +68,11 @@ func runCommand(input string) string {
 		return ""
 
 	default:
+		if fullpath, err := executable(parts[0], paths); err == nil && fullpath != "" {
+			output := executeScript(command, parts[1:]...)
+			return fmt.Sprintf("%s", output)
+		}
+
 		return fmt.Sprintf("%s: command not found", command)
 	}
 }
@@ -95,4 +101,11 @@ func executable(command string, paths []string) (string, error) {
 	}
 
 	return "", nil
+}
+
+func executeScript(command string, args ...string) string {
+	cmd, err := exec.Command(command, args...).Output()
+	check(err)
+	output := string(cmd)
+	return strings.TrimSuffix(output, "\n")
 }
