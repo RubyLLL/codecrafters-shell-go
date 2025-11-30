@@ -170,7 +170,7 @@ func parseArgs(input string) []string {
 			continue
 		}
 
-		if c == '\\' {
+		if c == '\\' && !inSingle {
 			escaped = true
 			continue
 		}
