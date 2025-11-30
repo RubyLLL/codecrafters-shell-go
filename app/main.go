@@ -52,7 +52,7 @@ L:
 
 func runCommand(input string) string {
 	input = strings.TrimSpace(input)
-	parts := strings.Split(input, " ")
+	parts := parseArgs(input)
 	if len(parts) == 0 {
 		return ""
 	}
@@ -139,4 +139,35 @@ func executeScript(command string, args ...string) string {
 	check(err)
 	output := string(cmd)
 	return strings.TrimSuffix(output, "\n")
+}
+
+func parseArgs(s string) []string {
+	var args []string
+	var cur strings.Builder
+	inQuote := false
+
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+
+		switch {
+		case c == '\'':
+			inQuote = !inQuote // toggle quote mode
+
+		case !inQuote && (c == ' ' || c == '\t' || c == '\n'):
+			// delimiter ends argument
+			if cur.Len() > 0 {
+				args = append(args, cur.String())
+				cur.Reset()
+			}
+
+		default:
+			cur.WriteByte(c)
+		}
+	}
+
+	if cur.Len() > 0 {
+		args = append(args, cur.String())
+	}
+
+	return args
 }
