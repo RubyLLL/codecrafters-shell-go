@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -34,7 +35,7 @@ L:
 
 		input, err := bufio.NewReader(os.Stdin).ReadString('\n')
 
-		check(err)
+		check(err, "Failed read command")
 
 		input = strings.TrimSpace(input)
 		output := runCommand(input)
@@ -63,12 +64,6 @@ func runCommand(input string) string {
 	case EXIT:
 		return "exit"
 
-	case ECHO:
-		if len(parts) > 1 {
-			return strings.Join(parts[1:], " ")
-		}
-		return ""
-
 	case TYPE:
 		if len(parts) > 1 {
 			if supported(parts[1]) {
@@ -93,7 +88,7 @@ func runCommand(input string) string {
 			return fmt.Sprintf("cd: %s: No such file or directory", parts[1])
 		}
 		err := os.Chdir(target)
-		check(err)
+		check(err, "Failed to change directory")
 		return ""
 
 	default:
@@ -106,9 +101,9 @@ func runCommand(input string) string {
 	}
 }
 
-func check(err error) {
+func check(err error, msg string) {
 	if err != nil {
-		panic(err)
+		fmt.Sprintf("%s: %s", msg, err.Error())
 	}
 }
 
@@ -135,10 +130,44 @@ func exist(path string) bool {
 }
 
 func executeScript(command string, args ...string) string {
-	cmd, err := exec.Command(command, args...).Output()
-	check(err)
-	output := string(cmd)
-	return strings.TrimSuffix(output, "\n")
+	redirectFlag := false
+	outputFile := ""
+	if len(args) >= 2 {
+		// check if need redirecting output to a file
+		if args[len(args)-2] == ">" || args[len(args)-2] == "1>" {
+			redirectFlag = true
+			outputFile = args[len(args)-1]
+			args = args[:len(args)-2]
+		}
+	}
+
+	cmd := exec.Command(command, args...)
+
+	if redirectFlag {
+		file, err := os.OpenFile(outputFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		check(err, "redirect error")
+		defer file.Close()
+		cmd.Stdout = file
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			check(err, "command execution error")
+		}
+
+		return ""
+	}
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	out, err := cmd.Output()
+	if err != nil {
+		if stderr.Len() > 0 {
+			return stderr.String()
+		}
+		return err.Error()
+	}
+	return strings.TrimSuffix(string(out), "\n")
 }
 
 func parseArgs(input string) []string {

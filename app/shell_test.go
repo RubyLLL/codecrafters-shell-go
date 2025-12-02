@@ -267,3 +267,11 @@ func TestSingleQuote(t *testing.T) {
 		})
 	}
 }
+
+func TestRedirectToFile(t *testing.T) {
+	got := runCommand("echo 'Hello Emily' 1> /tmp/fox/owl.md")
+	want := "$ "
+	if got != want {
+		t.Errorf("single quote failed on %#v = %#v, want %#v", tt.command, got, tt.want)
+	}
+}
