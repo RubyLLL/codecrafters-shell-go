@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/chzyer/readline"
@@ -52,11 +53,14 @@ func fetchAllExecutables() ([]string, error) {
 	for exe := range executables {
 		result = append(result, exe)
 	}
+
 	return result, nil
 }
 
 type BellWrapper struct {
-	Inner readline.AutoCompleter
+	Inner    readline.AutoCompleter
+	tabPress bool
+	rl       *readline.Instance
 }
 
 func (w *BellWrapper) Do(line []rune, pos int) ([][]rune, int) {
@@ -67,12 +71,50 @@ func (w *BellWrapper) Do(line []rune, pos int) ([][]rune, int) {
 
 	matches, offset := w.Inner.Do(line, pos)
 
+	// remove duplicates
+	seen := make(map[string]struct{})
+	uniqueMatches := make([][]rune, 0, len(matches))
+	for _, match := range matches {
+		s := string(match)
+		if _, found := seen[s]; !found {
+			seen[s] = struct{}{}
+			uniqueMatches = append(uniqueMatches, match)
+		}
+	}
+	matches = uniqueMatches
+
+	sort.Slice(matches, func(i, j int) bool {
+		return string(matches[i]) < string(matches[j])
+	})
+
 	if len(matches) == 0 {
 		fmt.Fprint(os.Stdout, "\x07")
 		return nil, 0
+	} else if len(matches) > 1 {
+		if !w.tabPress {
+			w.tabPress = true
+			fmt.Fprintf(os.Stdout, "\x07")
+			return nil, 0
+		} else {
+			w.tabPress = false
+			strs := make([]string, 0, len(matches))
+			for _, s := range matches {
+				strs = append(strs, string(line)+strings.TrimSpace(string(s)))
+			}
+			fmt.Fprintf(os.Stdout, "\n%s\n", strings.Join(strs, "  "))
+			w.rl.Refresh()
+			return nil, 0
+		}
+	} else {
+		return matches, offset
 	}
+}
 
-	return matches, offset
+func (w *BellWrapper) OnChange(line []rune, pos int, key rune) (newLine []rune, newPos int, ok bool) {
+	if key != '\t' {
+		w.tabPress = false
+	}
+	return nil, 0, false
 }
 
 func main() {
@@ -86,12 +128,19 @@ func main() {
 	base := readline.NewPrefixCompleter(items...)
 
 	// Wrap it with our bell behavior
-	completer := &BellWrapper{Inner: base}
+	completer := &BellWrapper{
+		Inner:    base,
+		tabPress: false,
+	}
 
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:       "$ ",
 		AutoComplete: completer,
+		Listener:     completer,
 	})
+
+	completer.rl = rl
+
 	if err != nil {
 		panic(err)
 	}
