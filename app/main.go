@@ -24,6 +24,37 @@ var supportedCommand = []string{EXIT, ECHO, TYPE, PWD, CD}
 
 var paths = strings.Split(os.Getenv("PATH"), string(os.PathListSeparator))
 
+func fetchAllExecutables() ([]string, error) {
+	executables := make(map[string]struct{})
+	for _, path := range paths {
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			continue // skip if cannot read
+		}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			name := entry.Name()
+			info, err := entry.Info()
+			if err != nil {
+				continue
+			}
+			mode := info.Mode()
+			// Check if executable by owner (unix)
+			if mode&0111 != 0 {
+				executables[name] = struct{}{}
+			}
+		}
+	}
+
+	var result []string
+	for exe := range executables {
+		result = append(result, exe)
+	}
+	return result, nil
+}
+
 type BellWrapper struct {
 	Inner readline.AutoCompleter
 }
@@ -45,12 +76,14 @@ func (w *BellWrapper) Do(line []rune, pos int) ([][]rune, int) {
 }
 
 func main() {
-	base := readline.NewPrefixCompleter(
-		readline.PcItem("echo"),
-		readline.PcItem("ls"),
-		readline.PcItem("cat"),
-		readline.PcItem("exit"),
-	)
+	executableFiles, err := fetchAllExecutables()
+	check(err, "Failed to fetch executable files")
+	allCommands := append(supportedCommand, executableFiles...)
+	items := make([]readline.PrefixCompleterInterface, 0, len(allCommands))
+	for _, cmd := range allCommands {
+		items = append(items, readline.PcItem(cmd))
+	}
+	base := readline.NewPrefixCompleter(items...)
 
 	// Wrap it with our bell behavior
 	completer := &BellWrapper{Inner: base}
