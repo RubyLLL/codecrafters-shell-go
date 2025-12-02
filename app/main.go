@@ -130,12 +130,12 @@ func exist(path string) bool {
 }
 
 func executeScript(command string, args ...string) string {
-	redirectFlag := false
-	outputFile := ""
+	var redirectType string
+	var outputFile string
+
 	if len(args) >= 2 {
-		// check if need redirecting output to a file
-		if args[len(args)-2] == ">" || args[len(args)-2] == "1>" {
-			redirectFlag = true
+		redirectType = args[len(args)-2]
+		if redirectType == ">" || redirectType == "1>" || redirectType == "2>" {
 			outputFile = args[len(args)-1]
 			args = args[:len(args)-2]
 		}
@@ -143,17 +143,21 @@ func executeScript(command string, args ...string) string {
 
 	cmd := exec.Command(command, args...)
 
-	if redirectFlag {
+	if outputFile != "" {
 		file, err := os.OpenFile(outputFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		check(err, "redirect error")
 		defer file.Close()
-		cmd.Stdout = file
-		cmd.Stderr = os.Stderr
 
-		if err := cmd.Run(); err != nil {
-			check(err, "command execution error")
+		switch redirectType {
+		case ">", "1>":
+			cmd.Stdout = file
+			cmd.Stderr = os.Stderr
+		case "2>":
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = file
 		}
 
+		_ = cmd.Run()
 		return ""
 	}
 
