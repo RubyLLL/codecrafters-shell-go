@@ -24,13 +24,36 @@ var supportedCommand = []string{EXIT, ECHO, TYPE, PWD, CD}
 
 var paths = strings.Split(os.Getenv("PATH"), string(os.PathListSeparator))
 
+type BellWrapper struct {
+	Inner readline.AutoCompleter
+}
+
+func (w *BellWrapper) Do(line []rune, pos int) ([][]rune, int) {
+	if w.Inner == nil {
+		fmt.Fprint(os.Stdout, "\x07")
+		return nil, 0
+	}
+
+	matches, offset := w.Inner.Do(line, pos)
+
+	if len(matches) == 0 {
+		fmt.Fprint(os.Stdout, "\x07")
+		return nil, 0
+	}
+
+	return matches, offset
+}
+
 func main() {
-	completer := readline.NewPrefixCompleter(
+	base := readline.NewPrefixCompleter(
 		readline.PcItem("echo"),
 		readline.PcItem("ls"),
 		readline.PcItem("cat"),
 		readline.PcItem("exit"),
 	)
+
+	// Wrap it with our bell behavior
+	completer := &BellWrapper{Inner: base}
 
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:       "$ ",
