@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"os"
@@ -9,11 +8,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-)
 
-// Ensures gofmt doesn't remove the "fmt" and "os" imports in stage 1 (feel free to remove this!)
-var _ = fmt.Fprint
-var _ = os.Stdout
+	"github.com/chzyer/readline"
+)
 
 const (
 	EXIT string = "exit"
@@ -28,21 +25,34 @@ var supportedCommand = []string{EXIT, ECHO, TYPE, PWD, CD}
 var paths = strings.Split(os.Getenv("PATH"), string(os.PathListSeparator))
 
 func main() {
-	// TODO: Uncomment the code below to pass the first stage
-L:
-	for true {
-		fmt.Fprint(os.Stdout, "$ ")
+	completer := readline.NewPrefixCompleter(
+		readline.PcItem("echo"),
+		readline.PcItem("ls"),
+		readline.PcItem("cat"),
+		readline.PcItem("exit"),
+	)
 
-		input, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt:       "$ ",
+		AutoComplete: completer,
+	})
+	if err != nil {
+		panic(err)
+	}
+	defer rl.Close()
 
-		check(err, "Failed read command")
+	for {
+		line, err := rl.Readline()
+		if err != nil { // EOF or Ctrl+D
+			break
+		}
 
-		input = strings.TrimSpace(input)
+		input := strings.TrimSpace(line)
 		output := runCommand(input)
 
 		switch output {
 		case EXIT:
-			break L
+			return
 		default:
 			if len(output) > 0 {
 				fmt.Println(output)
