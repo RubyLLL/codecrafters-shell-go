@@ -135,7 +135,7 @@ func executeScript(command string, args ...string) string {
 
 	if len(args) >= 2 {
 		redirectType = args[len(args)-2]
-		if redirectType == ">" || redirectType == "1>" || redirectType == "2>" {
+		if strings.Contains(redirectType, ">") {
 			outputFile = args[len(args)-1]
 			args = args[:len(args)-2]
 		}
@@ -144,15 +144,21 @@ func executeScript(command string, args ...string) string {
 	cmd := exec.Command(command, args...)
 
 	if outputFile != "" {
-		file, err := os.OpenFile(outputFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		flags := os.O_WRONLY | os.O_CREATE
+		if strings.Contains(redirectType, ">>") {
+			flags |= os.O_APPEND
+		} else {
+			flags |= os.O_TRUNC
+		}
+		file, err := os.OpenFile(outputFile, flags, 0644)
 		check(err, "redirect error")
 		defer file.Close()
 
 		switch redirectType {
-		case ">", "1>":
+		case ">", "1>", ">>", "1>>":
 			cmd.Stdout = file
 			cmd.Stderr = os.Stderr
-		case "2>":
+		case "2>", "2>>":
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = file
 		}
