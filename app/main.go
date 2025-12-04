@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -177,6 +178,7 @@ func longestCommonPrefix(items [][]rune) (string, int) {
 func main() {
 	executableFiles, err := fetchAllExecutables()
 	check(err, "Failed to fetch executable files")
+
 	allCommands := append(supportedCommand, executableFiles...)
 	items := make([]readline.PrefixCompleterInterface, 0, len(allCommands))
 	for _, cmd := range allCommands {
@@ -210,7 +212,12 @@ func main() {
 		}
 
 		input := strings.TrimSpace(line)
-		output := runCommand(input)
+		var output string
+		if strings.Contains(input, "|") {
+			pipe(input)
+		} else {
+			output = runCommand(input)
+		}
 
 		switch output {
 		case EXIT:
@@ -299,6 +306,51 @@ func exist(path string) bool {
 		return true
 	}
 	return false
+}
+
+func pipe(input string) {
+
+	parts := strings.Split(input, "|")
+	commands := make([]*exec.Cmd, 0, len(parts))
+
+	for _, cmd := range parts {
+		fields := strings.Fields(strings.TrimSpace(cmd))
+		command := exec.Command(fields[0], fields[1:]...)
+		commands = append(commands, command)
+	}
+
+	pipes := make([]*io.PipeWriter, 0, len(commands)-1)
+	for i := 0; i < len(commands)-1; i++ {
+		pr, pw := io.Pipe()
+
+		commands[i].Stdout = pw
+		commands[i+1].Stdin = pr
+		pipes = append(pipes, pw)
+	}
+
+	commands[len(commands)-1].Stdout = os.Stdout
+
+	for _, command := range commands {
+		if err := command.Start(); err != nil {
+			fmt.Printf("error running command: %#v", err)
+		}
+	}
+
+	for i := 0; i < len(commands)-1; i++ {
+		pw := pipes[i]
+		command := commands[i]
+
+		go func(pw *io.PipeWriter, command *exec.Cmd) {
+			command.Wait() // wait for upstream
+			pw.Close()     // signal downstram
+		}(pw, command)
+	}
+
+	// wait the last command to finish
+	if err := commands[len(commands)-1].Wait(); err != nil {
+		fmt.Printf("error closing the last command: %#v", err)
+	}
+
 }
 
 func executeScript(command string, args ...string) string {

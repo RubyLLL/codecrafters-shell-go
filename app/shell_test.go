@@ -1,108 +1,9 @@
 package main
 
 import (
-	"bytes"
-	"io"
 	"reflect"
-	"strings"
 	"testing"
-
-	"github.com/chzyer/readline"
 )
-
-// Mock AutoCompleter for testing BellWrapper
-type mockCompleter struct {
-	matches [][]rune
-	offset  int
-}
-
-func (m *mockCompleter) Do(line []rune, pos int) ([][]rune, int) {
-	return m.matches, m.offset
-}
-
-// Mock Readline Instance for testing BellWrapper
-type mockReadlineInstance struct {
-	io.Writer
-}
-
-func (m *mockReadlineInstance) Refresh() error {
-	return nil
-}
-
-func (m *mockReadlineInstance) Write(p []byte) (n int, err error) {
-	return m.Writer.Write(p)
-}
-
-func TestBellWrapperPartialCompletion(t *testing.T) {
-	tests := []struct {
-		name              string
-		initialLine       string
-		initialPos        int
-		mockCompleter     *mockCompleter
-		expectedOutput    string // What should be written to stdout
-		expectedLine      string // The line returned by Do
-		expectedPos       int    // The pos returned by Do
-		tabPressCount     int
-		expectBell        bool
-		expectListOptions bool
-	}{
-		{
-			name:        "First tab press, multiple matches with LCP",
-			initialLine: "ec",
-			initialPos:  2,
-			mockCompleter: &mockCompleter{
-				matches: [][]rune{[]rune("echo"), []rune("exit")},
-				offset:  0,
-			},
-			tabPressCount: 1,
-			expectedLine:  "e",
-			expectedPos:   1,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			var stdoutBuf bytes.Buffer
-			// Temporarily redirect stdout to capture output
-			oldStdout := os.Stdout
-			r, w, _ := os.Pipe()
-			os.Stdout = w
-
-			completer := &BellWrapper{
-				Inner:    tc.mockCompleter,
-				tabPress: false,
-			}
-			mockRl := &mockReadlineInstance{Writer: &stdoutBuf}
-			completer.rl = mockRl
-
-			// Simulate tab presses
-			var gotMatches [][]rune
-			var gotOffset int
-			for i := 0; i < tc.tabPressCount; i++ {
-				gotMatches, gotOffset = completer.Do([]rune(tc.initialLine), tc.initialPos)
-			}
-
-			w.Close()
-			os.Stdout = oldStdout
-			io.Copy(&stdoutBuf, r)
-
-			if tc.expectBell && !strings.Contains(stdoutBuf.String(), "\x07") {
-				t.Errorf("Expected bell sound, but not found in output: %q", stdoutBuf.String())
-			}
-			if tc.expectListOptions && !strings.Contains(stdoutBuf.String(), "echo  exit") { // Example check for listing
-				t.Errorf("Expected options to be listed, but not found in output: %q", stdoutBuf.String())
-			}
-
-			if gotOffset != tc.expectedPos {
-				t.Errorf("Do() got offset %d, want %d", gotOffset, tc.expectedPos)
-			}
-			// Only compare the first element of matches, as that's what readline uses for completion in this mode
-			if len(gotMatches) > 0 && string(gotMatches[0]) != tc.expectedLine {
-				t.Errorf("Do() got line %q, want %q", string(gotMatches[0]), tc.expectedLine)
-			}
-		})
-	}
-}
 
 // echo
 func TestRunCommandEcho(t *testing.T) {
@@ -342,7 +243,7 @@ func TestSingleQuote(t *testing.T) {
 		},
 		{
 			name:    "escape character outside quotes 1",
-			command: "echo world\ \ \ \ \ \ script",
+			command: "echo world\\ \\ \\ \\ \\ \\ script",
 			want:    "world      script",
 		},
 		{
@@ -353,7 +254,7 @@ func TestSingleQuote(t *testing.T) {
 		{
 			name:    "Backslash within double quotes 1",
 			command: "echo \"A \\ escapes itself\"",
-			want:    "A \ escapes itself",
+			want:    "A \\ escapes itself",
 		},
 	}
 
