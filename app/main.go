@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/chzyer/readline"
@@ -212,72 +213,33 @@ func main() {
 		}
 
 		input := strings.TrimSpace(line)
-		var output string
+		parts := parseArgs(input)
 		if strings.Contains(input, "|") {
 			pipe(input)
+		} else if supported(parts[0]) && !strings.Contains(input, ">") {
+			executeBuiltin(parts, os.Stdin, os.Stdout)
 		} else {
-			output = runCommand(input)
-		}
-
-		switch output {
-		case EXIT:
-			return
-		default:
+			output := runCommand(input)
 			if len(output) > 0 {
 				fmt.Println(output)
 			}
 		}
+
 	}
 }
 
 func runCommand(input string) string {
 	input = strings.TrimSpace(input)
 	parts := parseArgs(input)
-	if len(parts) == 0 {
-		return ""
-	}
 
 	command := parts[0]
 
-	switch command {
-	case EXIT:
-		return "exit"
-
-	case TYPE:
-		if len(parts) > 1 {
-			if supported(parts[1]) {
-				return fmt.Sprintf("%s is a shell builtin", parts[1])
-			} else if fullpath, err := executable(parts[1], paths); err == nil && fullpath != "" {
-				return fmt.Sprintf("%s is %s", parts[1], fullpath)
-			} else {
-				return fmt.Sprintf("%s: not found", parts[1])
-			}
-		}
-		return ""
-
-	case PWD:
-		output, _ := os.Getwd()
+	if fullpath, err := executable(parts[0], paths); err == nil && fullpath != "" {
+		output := executeScript(command, parts[1:]...)
 		return fmt.Sprintf("%s", output)
-
-	case CD:
-		var target = parts[1]
-		if parts[1] == "~" {
-			target, _ = os.UserHomeDir()
-		} else if !exist(target) {
-			return fmt.Sprintf("cd: %s: No such file or directory", parts[1])
-		}
-		err := os.Chdir(target)
-		check(err, "Failed to change directory")
-		return ""
-
-	default:
-		if fullpath, err := executable(parts[0], paths); err == nil && fullpath != "" {
-			output := executeScript(command, parts[1:]...)
-			return fmt.Sprintf("%s", output)
-		}
-
-		return fmt.Sprintf("%s: command not found", command)
 	}
+
+	return fmt.Sprintf("%s: command not found", command)
 }
 
 func check(err error, msg string) {
@@ -308,49 +270,147 @@ func exist(path string) bool {
 	return false
 }
 
-func pipe(input string) {
+func executeBuiltin(cmdParts []string, stdin io.Reader, stdout io.Writer) {
+	cmd := cmdParts[0]
 
-	parts := strings.Split(input, "|")
-	commands := make([]*exec.Cmd, 0, len(parts))
+	if cmd == ECHO {
+		output := ""
+		if len(cmdParts) > 1 {
+			output = strings.Join(cmdParts[1:], " ")
+		}
+		fmt.Fprintln(stdout, output)
+	} else if cmd == TYPE && len(cmdParts) > 1 {
+		arg := cmdParts[1]
+		if supported(arg) {
+			fmt.Fprintf(stdout, "%s is a shell builtin\n", arg)
+		} else {
+			path := os.Getenv("PATH")
+			dirs := strings.Split(path, string(os.PathListSeparator))
+			found := false
+			for _, dir := range dirs {
+				fullPath := filepath.Join(dir, arg)
+				if info, err := os.Stat(fullPath); err == nil && info.Mode()&0111 != 0 {
+					fmt.Fprintf(stdout, "%s is %s\n", arg, fullPath)
+					found = true
+					break
+				}
+			}
+			if !found {
+				fmt.Fprintf(stdout, "%s: not found\n", arg)
+			}
+		}
+	} else if cmd == "pwd" {
+		// Get current working directory
+		cwd, err := os.Getwd()
+		if err != nil {
+			fmt.Fprintf(stdout, "pwd: %v\n", err)
+			return
+		}
+		fmt.Fprintln(stdout, cwd)
+	} else if cmd == "exit" {
+		// Handle exit with optional exit code
+		exitCode := 0
+		if len(cmdParts) > 1 {
+			code, err := strconv.Atoi(cmdParts[1])
+			if err != nil {
+				fmt.Fprintf(stdout, "exit: %s: numeric argument required\n", cmdParts[1])
+				exitCode = 2 // Common shell exit code for invalid argument
+			} else {
+				exitCode = code
+			}
+		}
 
-	for _, cmd := range parts {
-		fields := strings.Fields(strings.TrimSpace(cmd))
-		command := exec.Command(fields[0], fields[1:]...)
-		commands = append(commands, command)
-	}
+		os.Exit(exitCode)
+	} else if cmd == "cd" {
+		targetDir := ""
+		if len(cmdParts) <= 1 || cmdParts[1] == "~" {
 
-	pipes := make([]*io.PipeWriter, 0, len(commands)-1)
-	for i := 0; i < len(commands)-1; i++ {
-		pr, pw := io.Pipe()
+			// go to home directory
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				fmt.Fprintf(stdout, "cd: %v\n", err)
+				return
+			}
+			targetDir = homeDir
+		} else {
+			targetDir = cmdParts[1]
+		}
 
-		commands[i].Stdout = pw
-		commands[i+1].Stdin = pr
-		pipes = append(pipes, pw)
-	}
-
-	commands[len(commands)-1].Stdout = os.Stdout
-
-	for _, command := range commands {
-		if err := command.Start(); err != nil {
-			fmt.Printf("error running command: %#v", err)
+		err := os.Chdir(targetDir)
+		if err != nil {
+			fmt.Fprintf(stdout, "cd: %s: No such file or directory\n", targetDir)
+			return
 		}
 	}
 
-	for i := 0; i < len(commands)-1; i++ {
-		pw := pipes[i]
-		command := commands[i]
+}
 
-		go func(pw *io.PipeWriter, command *exec.Cmd) {
-			command.Wait() // wait for upstream
-			pw.Close()     // signal downstram
-		}(pw, command)
+func pipe(input string) {
+	parts := strings.Split(input, "|")
+	if len(parts) == 0 {
+		return
 	}
 
-	// wait the last command to finish
-	if err := commands[len(commands)-1].Wait(); err != nil {
-		fmt.Printf("error closing the last command: %#v", err)
+	// Execute pipeline recursively
+	executePipeline(parts, 0, os.Stdin, os.Stdout)
+}
+
+func executePipeline(parts []string, idx int, stdin io.Reader, stdout io.Writer) {
+	if idx >= len(parts) {
+		return
 	}
 
+	cmdStr := strings.TrimSpace(parts[idx])
+	fields := strings.Fields(cmdStr)
+	if len(fields) == 0 {
+		// Skip empty commands
+		executePipeline(parts, idx+1, stdin, stdout)
+		return
+	}
+
+	cmdName := fields[0]
+
+	if idx == len(parts)-1 {
+		// Last command in pipeline
+		if supported(cmdName) {
+			executeBuiltin(fields, stdin, stdout)
+		} else {
+			cmd := exec.Command(fields[0], fields[1:]...)
+			cmd.Stdin = stdin
+			cmd.Stdout = stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				fmt.Printf("error: %v\n", err)
+			}
+		}
+	} else {
+		// Not the last command - need to pipe to next
+		pr, pw := io.Pipe()
+
+		if supported(cmdName) {
+			// Run builtin in goroutine
+			go func() {
+				executeBuiltin(fields, stdin, pw)
+				pw.Close()
+			}()
+		} else {
+			// Run external command
+			cmd := exec.Command(fields[0], fields[1:]...)
+			cmd.Stdin = stdin
+			cmd.Stdout = pw
+			cmd.Stderr = os.Stderr
+
+			go func() {
+				if err := cmd.Run(); err != nil {
+					fmt.Printf("error: %v\n", err)
+				}
+				pw.Close()
+			}()
+		}
+
+		// Execute next command with output from this one as input
+		executePipeline(parts, idx+1, pr, stdout)
+	}
 }
 
 func executeScript(command string, args ...string) string {
