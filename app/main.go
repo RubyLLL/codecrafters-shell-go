@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,6 +28,8 @@ const (
 var supportedCommand = []string{EXIT, ECHO, TYPE, PWD, CD, HISTORY}
 
 var paths = strings.Split(os.Getenv("PATH"), string(os.PathListSeparator))
+
+var history = &History{File: "~/.myshell_history", MaxLen: math.MaxInt64}
 
 func fetchAllExecutables() ([]string, error) {
 	executables := make(map[string]struct{})
@@ -213,6 +216,8 @@ func main() {
 			break
 		}
 
+		history.Write(line)
+
 		input := strings.TrimSpace(line)
 		parts := parseArgs(input)
 		if strings.Contains(input, "|") {
@@ -300,7 +305,7 @@ func executeBuiltin(cmdParts []string, stdin io.Reader, stdout io.Writer) {
 				fmt.Fprintf(stdout, "%s: not found\n", arg)
 			}
 		}
-	} else if cmd == "pwd" {
+	} else if cmd == PWD {
 		// Get current working directory
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -308,7 +313,7 @@ func executeBuiltin(cmdParts []string, stdin io.Reader, stdout io.Writer) {
 			return
 		}
 		fmt.Fprintln(stdout, cwd)
-	} else if cmd == "exit" {
+	} else if cmd == EXIT {
 		// Handle exit with optional exit code
 		exitCode := 0
 		if len(cmdParts) > 1 {
@@ -322,7 +327,7 @@ func executeBuiltin(cmdParts []string, stdin io.Reader, stdout io.Writer) {
 		}
 
 		os.Exit(exitCode)
-	} else if cmd == "cd" {
+	} else if cmd == CD {
 		targetDir := ""
 		if len(cmdParts) <= 1 || cmdParts[1] == "~" {
 
@@ -342,6 +347,8 @@ func executeBuiltin(cmdParts []string, stdin io.Reader, stdout io.Writer) {
 			fmt.Fprintf(stdout, "cd: %s: No such file or directory\n", targetDir)
 			return
 		}
+	} else if cmd == HISTORY {
+		history.Get()
 	}
 
 }
