@@ -349,9 +349,17 @@ func executeBuiltin(cmdParts []string, stdin io.Reader, stdout io.Writer) {
 		}
 	} else if cmd == HISTORY {
 		if len(cmdParts) == 2 {
+			// history <num>
 			if cnt, err := strconv.Atoi(cmdParts[1]); err == nil {
 				history.MaxLen = cnt
 			}
+		} else if len(cmdParts) == 3 {
+			// history -r <history_file>
+			history.File = cmdParts[2]
+			if err := history.ReadFromFile(); err != nil {
+				fmt.Fprintf(stdout, "history: %v\n", err)
+			}
+			return
 		}
 		history.Get()
 	}

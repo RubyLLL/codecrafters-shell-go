@@ -1,6 +1,10 @@
 package main
 
-import "fmt"
+import (
+	"bufio"
+	"fmt"
+	"os"
+)
 
 type History struct {
 	File   string
@@ -34,4 +38,19 @@ func (history *History) Get() {
 		}
 		fmt.Printf("%d  %s\n", i, line)
 	}
+}
+
+func (history *History) ReadFromFile() error {
+	file, err := os.Open(history.File)
+	if err != nil {
+		return fmt.Errorf("error opening history file")
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+
+	for scanner.Scan() {
+		history.Items = append(history.Items, scanner.Text())
+	}
+
+	return scanner.Err()
 }
