@@ -354,12 +354,21 @@ func executeBuiltin(cmdParts []string, stdin io.Reader, stdout io.Writer) {
 				history.MaxLen = cnt
 			}
 		} else if len(cmdParts) == 3 {
-			// history -r <history_file>
-			history.File = cmdParts[2]
-			if err := history.ReadFromFile(); err != nil {
-				fmt.Fprintf(stdout, "history: %v\n", err)
+			if cmdParts[1] == "-r" {
+				// history -r <history_file>
+				history.File = cmdParts[2]
+				if err := history.ReadFromFile(); err != nil {
+					fmt.Fprintf(stdout, "history: %v\n", err)
+				}
+				return
+			} else if cmdParts[1] == "-w" {
+				history.File = cmdParts[2]
+				if err := history.WriteToFile(); err != nil {
+					fmt.Fprintf(stdout, "history: %v\n", err)
+				}
+				return
 			}
-			return
+
 		}
 		history.Get()
 	}
