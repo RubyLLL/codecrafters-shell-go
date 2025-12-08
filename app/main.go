@@ -29,7 +29,7 @@ var supportedCommand = []string{EXIT, ECHO, TYPE, PWD, CD, HISTORY}
 
 var paths = strings.Split(os.Getenv("PATH"), string(os.PathListSeparator))
 
-var history = &History{File: "~/.myshell_history", MaxLen: math.MaxInt64}
+var history = &History{File: os.Getenv("HISTFILE"), MaxLen: math.MaxInt64}
 
 func fetchAllExecutables() ([]string, error) {
 	executables := make(map[string]struct{})
@@ -181,6 +181,8 @@ func longestCommonPrefix(items [][]rune) (string, int) {
 }
 
 func main() {
+	history.ReadFromFile()
+
 	executableFiles, err := fetchAllExecutables()
 	check(err, "Failed to fetch executable files")
 
