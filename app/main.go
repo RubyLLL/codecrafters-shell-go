@@ -348,6 +348,11 @@ func executeBuiltin(cmdParts []string, stdin io.Reader, stdout io.Writer) {
 			return
 		}
 	} else if cmd == HISTORY {
+		if len(cmdParts) == 2 {
+			if cnt, err := strconv.Atoi(cmdParts[1]); err == nil {
+				history.MaxLen = cnt
+			}
+		}
 		history.Get()
 	}
 
