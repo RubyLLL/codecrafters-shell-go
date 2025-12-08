@@ -328,6 +328,9 @@ func executeBuiltin(cmdParts []string, stdin io.Reader, stdout io.Writer) {
 			}
 		}
 
+		// write history to history file
+		history.WriteToFile()
+
 		os.Exit(exitCode)
 	} else if cmd == CD {
 		targetDir := ""
