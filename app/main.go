@@ -16,14 +16,15 @@ import (
 )
 
 const (
-	EXIT string = "exit"
-	ECHO string = "echo"
-	TYPE string = "type"
-	PWD  string = "pwd"
-	CD   string = "cd"
+	EXIT    string = "exit"
+	ECHO    string = "echo"
+	TYPE    string = "type"
+	PWD     string = "pwd"
+	CD      string = "cd"
+	HISTORY string = "history"
 )
 
-var supportedCommand = []string{EXIT, ECHO, TYPE, PWD, CD}
+var supportedCommand = []string{EXIT, ECHO, TYPE, PWD, CD, HISTORY}
 
 var paths = strings.Split(os.Getenv("PATH"), string(os.PathListSeparator))
 
