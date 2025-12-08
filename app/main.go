@@ -367,6 +367,12 @@ func executeBuiltin(cmdParts []string, stdin io.Reader, stdout io.Writer) {
 					fmt.Fprintf(stdout, "history: %v\n", err)
 				}
 				return
+			} else if cmdParts[1] == "-a" {
+				history.File = cmdParts[2]
+				if err := history.AppendToFile(); err != nil {
+					fmt.Fprintf(stdout, "history: %v\n", err)
+				}
+				return
 			}
 
 		}

@@ -69,3 +69,19 @@ func (History *History) WriteToFile() error {
 	}
 	return nil
 }
+
+func (history *History) AppendToFile() error {
+	file, err := os.OpenFile(history.File, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		return fmt.Errorf("error opening history file")
+	}
+	defer file.Close()
+
+	for _, item := range history.Items {
+		if _, err := file.WriteString(item + "\n"); err != nil {
+			return err
+		}
+	}
+	history.Items = []string{}
+	return nil
+}
