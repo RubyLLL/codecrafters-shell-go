@@ -221,18 +221,19 @@ func main() {
 		history.Write(line)
 
 		input := strings.TrimSpace(line)
-		parts := parseArgs(input)
 		if strings.Contains(input, "|") {
 			pipe(input)
-		} else if supported(parts[0]) && !strings.Contains(input, ">") {
-			executeBuiltin(parts, os.Stdin, os.Stdout)
 		} else {
-			output := runCommand(input)
-			if len(output) > 0 {
-				fmt.Println(output)
+			parts := parseArgs(input)
+			if len(parts) > 0 && supported(parts[0]) && !strings.Contains(input, ">") {
+				executeBuiltin(parts, os.Stdin, os.Stdout)
+			} else {
+				output := runCommand(input)
+				if len(output) > 0 {
+					fmt.Println(output)
+				}
 			}
 		}
-
 	}
 }
 
@@ -387,70 +388,108 @@ func executeBuiltin(cmdParts []string, stdin io.Reader, stdout io.Writer) {
 }
 
 func pipe(input string) {
-	parts := strings.Split(input, "|")
-	if len(parts) == 0 {
+	var commands [][]string
+	pipeCommands := strings.Split(input, "|")
+	for _, pc := range pipeCommands {
+		cmdParts := parseArgs(strings.TrimSpace(pc))
+		commands = append(commands, cmdParts)
+	}
+
+	if len(commands) < 2 {
 		return
 	}
 
-	// Execute pipeline recursively
-	executePipeline(parts, 0, os.Stdin, os.Stdout)
-}
+	var cmds []*exec.Cmd
+	var pipes []*os.File
 
-func executePipeline(parts []string, idx int, stdin io.Reader, stdout io.Writer) {
-	if idx >= len(parts) {
-		return
+	for i := 0; i < len(commands)-1; i++ {
+		r, w, err := os.Pipe()
+		if err != nil {
+			return
+		}
+		pipes = append(pipes, r, w)
 	}
 
-	cmdStr := strings.TrimSpace(parts[idx])
-	fields := strings.Fields(cmdStr)
-	if len(fields) == 0 {
-		// Skip empty commands
-		executePipeline(parts, idx+1, stdin, stdout)
-		return
-	}
+	for i, cmdParts := range commands {
+		cmdName := cmdParts[0]
 
-	cmdName := fields[0]
-
-	if idx == len(parts)-1 {
-		// Last command in pipeline
 		if supported(cmdName) {
-			executeBuiltin(fields, stdin, stdout)
-		} else {
-			cmd := exec.Command(fields[0], fields[1:]...)
-			cmd.Stdin = stdin
-			cmd.Stdout = stdout
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err != nil {
-				fmt.Printf("error: %v\n", err)
+			// builtin
+			var stdin, stdout *os.File
+
+			if i == 0 {
+				stdin = os.Stdin
+			} else {
+				stdin = pipes[(i-1)*2]
 			}
-		}
-	} else {
-		// Not the last command - need to pipe to next
-		pr, pw := io.Pipe()
 
-		if supported(cmdName) {
-			// Run builtin in goroutine
-			go func() {
-				executeBuiltin(fields, stdin, pw)
-				pw.Close()
-			}()
+			if i == len(commands)-1 {
+				stdout = os.Stdout
+			} else {
+				stdout = pipes[i*2+1]
+			}
+
+			go func(parts []string, in, out *os.File, isLast bool) {
+				defer func() {
+					if !isLast {
+						out.Close()
+					}
+				}()
+				executeBuiltin(parts, in, out)
+			}(cmdParts, stdin, stdout, i == len(commands)-1)
 		} else {
-			// Run external command
-			cmd := exec.Command(fields[0], fields[1:]...)
-			cmd.Stdin = stdin
-			cmd.Stdout = pw
-			cmd.Stderr = os.Stderr
-
-			go func() {
-				if err := cmd.Run(); err != nil {
-					fmt.Printf("error: %v\n", err)
+			// external
+			path := os.Getenv("PATH")
+			dirs := strings.Split(path, string(os.PathListSeparator))
+			var fullPath string
+			for _, dir := range dirs {
+				fp := filepath.Join(dir, cmdName)
+				if info, err := os.Stat(fp); err == nil && info.Mode()&0111 != 0 {
+					fullPath = fp
+					break
 				}
-				pw.Close()
-			}()
-		}
+			}
+			if fullPath == "" {
+				continue
+			}
 
-		// Execute next command with output from this one as input
-		executePipeline(parts, idx+1, pr, stdout)
+			cmd := exec.Command(fullPath, cmdParts[1:]...)
+
+			if i == 0 {
+				cmd.Stdin = os.Stdin
+			} else {
+				cmd.Stdin = pipes[(i-1)*2]
+			}
+
+			if i == len(commands)-1 {
+				cmd.Stdout = os.Stdout
+			} else {
+				cmd.Stdout = pipes[i*2+1]
+			}
+
+			cmd.Stderr = os.Stderr
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	// start all external commands
+	for _, cmd := range cmds {
+		cmd.Start()
+	}
+
+	// close all pipe write ends in parent
+	for i := 1; i < len(pipes); i += 2 {
+		pipes[i].Close()
+	}
+
+	// wait for all external commands
+	for _, cmd := range cmds {
+		cmd.Wait()
+	}
+
+	// close all pipe read ends
+	for i := 0; i < len(pipes); i += 2 {
+		pipes[i].Close()
 	}
 }
 
