@@ -1,13 +1,24 @@
 package main
 
 import (
+	"bytes"
+	"os"
 	"reflect"
 	"testing"
 )
 
+// Helper function to create test executor
+func newTestExecutor() *Executor {
+	pathFinder := NewPathFinder()
+	hist := &History{File: "", Items: []string{}, MaxLen: 100}
+	builtins := NewBuiltinCommands(pathFinder, hist)
+	return NewExecutor(pathFinder, builtins)
+}
+
 // echo
 func TestRunCommandEcho(t *testing.T) {
-	got := runCommand("echo Hello World")
+	executor := newTestExecutor()
+	got, _ := executor.Execute("echo Hello World")
 	want := "Hello World"
 
 	if got != want {
@@ -16,7 +27,8 @@ func TestRunCommandEcho(t *testing.T) {
 }
 
 func TestRunCommandEchoEmpty(t *testing.T) {
-	got := runCommand("echo")
+	executor := newTestExecutor()
+	got, _ := executor.Execute("echo")
 	want := ""
 
 	if got != want {
@@ -26,27 +38,19 @@ func TestRunCommandEchoEmpty(t *testing.T) {
 
 // unknown
 func TestRunCommandUnknown(t *testing.T) {
-	got := runCommand("foobar")
+	executor := newTestExecutor()
+	_, err := executor.Execute("foobar")
 	want := "foobar: command not found"
 
-	if got != want {
-		t.Errorf("unknown: got %q, want %q", got, want)
-	}
-}
-
-// exit
-func TestRunCommandExit(t *testing.T) {
-	got := runCommand("exit")
-	want := "exit"
-
-	if got != want {
-		t.Errorf("exit: got %q, want %q", got, want)
+	if err == nil || err.Error() != want {
+		t.Errorf("unknown: got %v, want %q", err, want)
 	}
 }
 
 // type
 func TestRunCommandTypeInvalid(t *testing.T) {
-	got := runCommand("type invalid_command")
+	executor := newTestExecutor()
+	got, _ := executor.Execute("type invalid_command")
 	want := "invalid_command: not found"
 
 	if got != want {
@@ -55,7 +59,8 @@ func TestRunCommandTypeInvalid(t *testing.T) {
 }
 
 func TestRunCommandTypeEcho(t *testing.T) {
-	got := runCommand("type echo")
+	executor := newTestExecutor()
+	got, _ := executor.Execute("type echo")
 	want := "echo is a shell builtin"
 
 	if got != want {
@@ -64,7 +69,8 @@ func TestRunCommandTypeEcho(t *testing.T) {
 }
 
 func TestRunCommandTypeEmpty(t *testing.T) {
-	got := runCommand("type ")
+	executor := newTestExecutor()
+	got, _ := executor.Execute("type ")
 	want := ""
 
 	if got != want {
@@ -73,7 +79,8 @@ func TestRunCommandTypeEmpty(t *testing.T) {
 }
 
 func TestRunCommandTypeExecutableFile(t *testing.T) {
-	got := runCommand("type cat")
+	executor := newTestExecutor()
+	got, _ := executor.Execute("type cat")
 	want := "cat is /bin/cat"
 
 	if got != want {
@@ -82,7 +89,8 @@ func TestRunCommandTypeExecutableFile(t *testing.T) {
 }
 
 func TestRunCommandTypeNonExist(t *testing.T) {
-	got := runCommand("type abc")
+	executor := newTestExecutor()
+	got, _ := executor.Execute("type abc")
 	want := "abc: not found"
 
 	if got != want {
@@ -91,7 +99,8 @@ func TestRunCommandTypeNonExist(t *testing.T) {
 }
 
 func TestExecuteScript(t *testing.T) {
-	got := runCommand("ls .")
+	executor := newTestExecutor()
+	got, _ := executor.Execute("ls .")
 	want := "main.go\nshell_test.go"
 
 	if got != want {
@@ -100,7 +109,8 @@ func TestExecuteScript(t *testing.T) {
 }
 
 func TestTypePwd(t *testing.T) {
-	got := runCommand("type pwd")
+	executor := newTestExecutor()
+	got, _ := executor.Execute("type pwd")
 	want := "pwd is a shell builtin"
 
 	if got != want {
@@ -109,7 +119,8 @@ func TestTypePwd(t *testing.T) {
 }
 
 func TestPwd(t *testing.T) {
-	got := runCommand("pwd")
+	executor := newTestExecutor()
+	got, _ := executor.Execute("pwd")
 	want := "/Users/xiaoyuelyu/go/codecrafters-shell-go/app"
 
 	if got != want {
@@ -118,17 +129,19 @@ func TestPwd(t *testing.T) {
 }
 
 func TestGoToNonExistentAbsoultePath(t *testing.T) {
-	got := runCommand("cd /Users/agnes")
+	executor := newTestExecutor()
+	_, err := executor.Execute("cd /Users/agnes")
 	want := "cd: /Users/agnes: No such file or directory"
 
-	if got != want {
-		t.Errorf("type: got %q, want %q", got, want)
+	if err == nil || err.Error() != want {
+		t.Errorf("type: got %v, want %q", err, want)
 	}
 }
 
 func TestGoToAbsolutePath(t *testing.T) {
-	runCommand("cd /Users/xiaoyuelyu")
-	got := runCommand("pwd")
+	executor := newTestExecutor()
+	executor.Execute("cd /Users/xiaoyuelyu")
+	got, _ := executor.Execute("pwd")
 	want := "/Users/xiaoyuelyu"
 
 	if got != want {
@@ -137,8 +150,9 @@ func TestGoToAbsolutePath(t *testing.T) {
 }
 
 func TestGoToRelativePath(t *testing.T) {
-	runCommand("cd ../")
-	got := runCommand("pwd")
+	executor := newTestExecutor()
+	executor.Execute("cd ../")
+	got, _ := executor.Execute("pwd")
 	want := "/Users/xiaoyuelyu/go/codecrafters-shell-go"
 
 	if got != want {
@@ -147,8 +161,9 @@ func TestGoToRelativePath(t *testing.T) {
 }
 
 func TestGoToHomeDir(t *testing.T) {
-	runCommand("cd ~")
-	got := runCommand("pwd")
+	executor := newTestExecutor()
+	executor.Execute("cd ~")
+	got, _ := executor.Execute("pwd")
 	want := "/Users/xiaoyuelyu"
 
 	if got != want {
@@ -206,16 +221,18 @@ func TestParseArgs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := parseArgs(tt.input)
+			got := ParseArgs(tt.input)
 			if !reflect.DeepEqual(got, tt.expected) {
 				t.Errorf("input: %q\nexpected: %#v\ngot:      %#v",
-					t.input, tt.expected, got)
+					tt.input, tt.expected, got)
 			}
 		})
 	}
 }
 
 func TestSingleQuote(t *testing.T) {
+	executor := newTestExecutor()
+
 	tests := []struct {
 		name    string
 		command string
@@ -260,10 +277,30 @@ func TestSingleQuote(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := runCommand(tt.command)
+			got, _ := executor.Execute(tt.command)
 			if got != tt.want {
 				t.Errorf("single quote failed on %#v = %#v, want %#v", tt.command, got, tt.want)
 			}
 		})
 	}
+}
+
+// Test for builtin commands with custom I/O
+func TestBuiltinCommandsWithIO(t *testing.T) {
+	pathFinder := NewPathFinder()
+	hist := &History{File: "", Items: []string{}, MaxLen: 100}
+	builtins := NewBuiltinCommands(pathFinder, hist)
+
+	t.Run("echo to buffer", func(t *testing.T) {
+		var buf bytes.Buffer
+		err := builtins.Execute("echo", []string{"test", "output"}, os.Stdin, &buf)
+		if err != nil {
+			t.Errorf("echo failed: %v", err)
+		}
+		got := buf.String()
+		want := "test output\n"
+		if got != want {
+			t.Errorf("echo: got %q, want %q", got, want)
+		}
+	})
 }
